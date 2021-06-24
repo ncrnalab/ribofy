@@ -23,12 +23,14 @@ from .ribofy_orfs import ribofy_orfs
 
 def main ():
 
-    text = """
-        ribofy <CMD> [arguments] ...\n
+    text = f"""
+        ribofy - version {__version__}
+
+        usage: ribofy <CMD> [arguments] ...
+
         Where <CMD> can be one of:
-        \torfs\t\tbuilds a compilation of ORFs from gtf annotation file
-        \tdetect\t\tdetects phased riboseq reads across pre-established ORFs (from riboseq orfs)
-    """
+            orfs            builds ORFs from gtf annotation
+            detect          detects phased riboseq reads across pre-build ORFs\n\n"""
 
 
     if len (sys.argv) < 2:

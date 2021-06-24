@@ -11,15 +11,16 @@ by the --min_aa_length flag
 """
 
 import sys
-import argparse
 import pysam
 import re
 import networkx as nx
 from tqdm import tqdm
 from collections import defaultdict
 
+from . import __version__
+from .utils import argparse2, rev_comp
 from .gtf2 import *
-from .utils import *
+
 
 
 def get_orfs (gtf, fa, output, min_aa_length=30):
@@ -264,22 +265,38 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
 
 def ribofy_orfs ():
 
-    text = """
+    info_text = """
         ribofy orfs: extracting ORFs from GTF
     """
 
-    parser = argparse.ArgumentParser(description=text)
-    parser._action_groups.pop()
+    help_text = f"""    
+        ribofy orfs - version {__version__}
 
-    # required
-    required = parser.add_argument_group('required arguments')
-    required.add_argument("--gtf", dest='gtf', required=True, help="GTF file, GENCODE-style")
-    required.add_argument("--fa", dest='fa', required=True, help="Genome fa file")
-    required.add_argument("--output", dest='output', default = "orfs.txt", help="output, default=orfs.txt")
+        required arguments:
+        --gtf <file>            GTF file, GENCODE-style
+        --fa <file>             Genome Fasta file (indexed with samtools faidx)
+        --output <str>          Output filename, default=orfs.txt   
 
-    # optional    
-    optional = parser.add_argument_group('optional arguments')
-    optional.add_argument("--min_aa_length", dest='min_aa_length', default=30, help="Minimum peptide length")
+        optional arguments:
+        --min_aa_length <INT>   Minimum peptide length, default=30
+
+        
+        usage: ribofy orfs --gtf GTF --fa FA [--output OUTPUT]"""
+
+    parser = argparse2 (
+        description=info_text,
+        usage=help_text,
+        help=help_text
+    )
+    parser.add_argument('orfs', nargs='?', help='') # dummy argument
+    
+    # required    
+    parser.add_argument("--gtf", dest='gtf', required=True)
+    parser.add_argument("--fa", dest='fa', required=True)
+    parser.add_argument("--output", dest='output', default = "orfs.txt")
+
+    # optional        
+    parser.add_argument("--min_aa_length", dest='min_aa_length', default=30)
     args = parser.parse_args()
 
     get_orfs (args.gtf, args.fa, args.output, min_aa_length=args.min_aa_length)
