@@ -14,12 +14,19 @@ And change number of ORFs used in offset calculation by the --norfs option
 
 
 import sys
-import argparse
 import pysam
 import pandas as pd
+import numpy as np
+from .argparse2 import argparse2
+from .get_phasing import get_phasing_stats, get_phasing_matrix
+from .bam_utils import get_tid_info
 
-from .utils import get_tid_info
 
+def percentile(n):
+    def percentile_(x):
+        return x.quantile(n)
+    percentile_.__name__ = 'percentile_{:2.0f}'.format(n*100)
+    return percentile_
 
 def get_offset (bamfile, orfs, output, norfs=10, min_read_length=25, max_read_length=35):
 
@@ -51,6 +58,7 @@ def get_offset (bamfile, orfs, output, norfs=10, min_read_length=25, max_read_le
 
     # initialize count_offsets
     length_range = range (min_read_length, max_read_length+1) 
+    
     count_offsets = {}
 
     for x in length_range:
@@ -58,14 +66,18 @@ def get_offset (bamfile, orfs, output, norfs=10, min_read_length=25, max_read_le
 
     off_conv = {0:0, 1:2, 2:1}
 
+    offset_stats = []
+
     for i, row in pd_orfs.head (norfs).iterrows ():
 
-        tid, start, end = dtid2ref[row['tid']], int(row['start']), int(row['stop'])
+        tid, start, end = dtid2ref[row['tid']], int(row['start']), int(row['stop'])+3
+
+        dcds = {}
+        for lr in length_range:
+            dcds[lr] = [0] * (end-start)
                 
         for read in bam.fetch (tid, start, end):
 
-            #cds = [0] * (end-start+1)
-            
             init_offset_pos = read.pos + 12
 
             read_length = read.infer_read_length () 
@@ -73,7 +85,7 @@ def get_offset (bamfile, orfs, output, norfs=10, min_read_length=25, max_read_le
             if read_length < min_read_length or read_length > max_read_length:
                 continue
 
-            if init_offset_pos >= start-3 and init_offset_pos < end+3: 
+            if init_offset_pos >= start and init_offset_pos < end: 
 
                 init_rel_pos = init_offset_pos - start            
                 offset = off_conv[init_rel_pos % 3]
@@ -84,26 +96,84 @@ def get_offset (bamfile, orfs, output, norfs=10, min_read_length=25, max_read_le
                     print ("something wrong with offset")
        
                 count_offsets[read_length][offset] += 1
-       
-    # compile dataframe
-    pd_offsets = pd.DataFrame ({        
-        'read_length' : list (length_range),
-        'offset' : [str(12+count_offsets[x].index (max(count_offsets[x]))) for x in length_range],
-        'reads12' : [count_offsets[x][0] for x in length_range],
-        'reads13' : [count_offsets[x][1] for x in length_range],
-        'reads14' : [count_offsets[x][2] for x in length_range],
-        'bam' : bamfile
-    })
+                
+                if init_rel_pos >= 0 and init_rel_pos < len (dcds[read_length]): 
+                    dcds[read_length][init_rel_pos] += 1
 
-    pd_offsets.to_csv (output, sep="\t")
+        #print (dcds)
+        for lr in length_range:
+            
+            mat = get_phasing_matrix (dcds[lr])
+
+            frame_sort = np.argsort(mat.sum(axis=0))[::-1]
+
+            mat = mat[:,frame_sort]
+
+            wilcox_p, binom_p = get_phasing_stats (mat)
+
+            offset_stats.append ({
+                'read_length' : lr,
+                'tid' : tid,
+                'p_wilcox' : wilcox_p,
+                'p_binom' : binom_p,
+                'offset' : 12 + off_conv[frame_sort[0]],
+                'onframe' : np.sum (mat[:,0]),
+                'offframe1' : np.sum (mat[:,1]),
+                'offframe2' : np.sum (mat[:,2])                
+            })
+
+    pd_stats = pd.DataFrame (offset_stats)
+    
+    pd_agg = pd_stats.dropna().groupby ('read_length').agg ({'p_wilcox' : [percentile (.1), percentile (.9)],
+                                          'p_binom' : [percentile (.1), percentile (.9)],
+                                          'offset' : [percentile (.1), percentile (.9)],
+                                          'onframe' : [np.sum],
+                                          'offframe1' : [np.sum],
+                                          'offframe2' : [np.sum]})
+
+    pd_agg['offset'] = pd_agg['offset'].astype ("int")
+    pd_agg['mean_offset'] = pd_agg['offset'].mean (axis=1)
+
+    pd_agg.columns = ['_'.join(col).strip("_") for col in pd_agg.columns.values]
+    
+    pd_agg['bam'] = bamfile
+
+    print (pd_agg)
+
+    pd_agg.to_csv ("pd_stats.txt", sep="\t")
+    
+    
+    # # compile dataframe
+    # pd_offsets = pd.DataFrame ({        
+    #     'read_length' : list (length_range),
+    #     'offset' : [str(12+count_offsets[x].index (max(count_offsets[x]))) for x in length_range],
+    #     'reads12' : [count_offsets[x][0] for x in length_range],
+    #     'reads13' : [count_offsets[x][1] for x in length_range],
+    #     'reads14' : [count_offsets[x][2] for x in length_range],
+    #     'bam' : bamfile
+    # })
+
+
+    pd_agg.to_csv (output, sep="\t")
+
+    print (pd_agg.columns)
 
     print ("extracted offsets:")
-    print (pd_offsets[['read_length', 'offset']])
+    print (pd_agg[['mean_offset']])
     print ("done")
 
-if __name__ == "__main__":
-        
-    parser = argparse.ArgumentParser(description='get ORFs from GTF')
+
+def ribofy_offset ():
+
+    parser = argparse2 (
+        description="",
+        usage="",
+        help=""
+    )
+
+    parser.add_argument('detect', nargs='?', help='') # dummy argument
+    parser._action_groups.pop()
+
     parser.add_argument("--bam",   dest='bam', required=True, help="bam file - sorted and indexed")
     parser.add_argument("--orfs",  dest='orfs', required=True, help="orfs - generated by get_ORFs.py")
     parser.add_argument("--output", dest='output', default = "ribofy_offsets.txt", help="output")
@@ -121,3 +191,6 @@ if __name__ == "__main__":
                 max_read_length = args.max_read_length)
 
 
+if __name__ == "__main__":
+        
+    ribofy_offset ()
