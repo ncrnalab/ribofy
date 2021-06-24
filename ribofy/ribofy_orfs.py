@@ -18,12 +18,12 @@ from tqdm import tqdm
 from collections import defaultdict
 
 from . import __version__
-from .utils import argparse2, rev_comp
+from .utils import argparse2, rev_comp, translate
 from .gtf2 import *
 
 
 
-def get_orfs (gtf, fa, output, min_aa_length=30):
+def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_errors = False):
 
     print ("### get_orfs ###")
 
@@ -31,7 +31,10 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
     gtf = gtf2 (gtf)
     fa = pysam.FastaFile (fa)
 
-    ferror = open (output + ".errors", "w")
+    ferror = open (output + ".errors.txt", "w") if output_errors else None
+    fseq_aa   = open (output + ".aa.fa", "w") if output_fa else None
+    fseq_nt   = open (output + ".nt.fa", "w") if output_fa else None
+
     lorfs = []
     edges = []
 
@@ -133,20 +136,23 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
             orf['bio_type'] = biotype
             orf['orf_id'] = f"{tid}_orf_{(i+1):05d}"
 
+            orf['seq'] = seq[orf['start']:orf['stop']]
             
             #using annotated stop
             if orf['stop'] == annot_stop and gannot_start > 0:
                 orf['orf_type'] = "annotated"
-                if annot_start < orf['start']:
 
-                    print (f"ERROR: invalid ORF annotation: {tid}")
+                if annot_start < orf['start'] and abs(annot_stop-annot_start)%3 != 0:
+                    
+                    
+                    if output_errors:
+                        ## ERROR: invalid ORF annotation
+                        error_data = [str(orf[c]) for c in orf]
+                        error_data += [seq]
+                        error_data += [seq[orf['start']:orf['stop']]]
+                        error_data += [translate (seq[orf['start']:orf['stop']])]
 
-                    error_data = [str(orf[c]) for c in orf]
-
-                    error_data += [seq]
-                    error_data += [utils.translate (seq[orf['start']:orf['stop']])]
-
-                    print ("\t".join (error_data), file=ferror)
+                        print ("\t".join (error_data), file=ferror)
 
                     # overwrite annot
                     annot_start = orf['start'] 
@@ -178,7 +184,10 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
 
             lorfs.append (orf)
 
-    ferror.close()
+    if output_errors:
+        ferror.close()
+
+    
 
     print ("infering orf groups...")
 
@@ -251,6 +260,11 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
         
         print ("\t".join (columns), file=fout)
         for orf in lorfs:
+
+            if output_fa:
+                print (f">{orf['orf_id']}\n{translate(orf['seq'])}", file=fseq_aa)
+                print (f">{orf['orf_id']}\n{orf['seq']}", file=fseq_nt)
+
                       
             gscore = group_score[orf['orf_group']]
             oscore = group_conv[orf['orf_type']]
@@ -261,7 +275,9 @@ def get_orfs (gtf, fa, output, min_aa_length=30):
             if oscore >= gscore:
                 print ("\t".join ([str(orf[col]) for col in columns]), file=fout)
 
-
+    if output_fa:
+        fseq_aa.close()
+        fseq_nt.close()
 
 def ribofy_orfs ():
 
@@ -279,7 +295,8 @@ def ribofy_orfs ():
 
         optional arguments:
         --min_aa_length <INT>   Minimum peptide length, default=30
-
+        --output_fa             If set, outputs nucleotide and amino-acid fasta files (<output>.nt.fa and 
+                                <output>.aa.fa, respectively) for all ORFs found
         
         usage: ribofy orfs --gtf GTF --fa FA [--output OUTPUT]"""
 
@@ -297,9 +314,10 @@ def ribofy_orfs ():
 
     # optional        
     parser.add_argument("--min_aa_length", dest='min_aa_length', default=30)
+    parser.add_argument("--output_fa", dest='output_fa', action="store_true")
     args = parser.parse_args()
 
-    get_orfs (args.gtf, args.fa, args.output, min_aa_length=args.min_aa_length)
+    get_orfs (args.gtf, args.fa, args.output, min_aa_length=args.min_aa_length, output_errors=True, output_fa=args.output_fa)
 
 
 
