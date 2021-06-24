@@ -53,7 +53,7 @@ def get_phasing (bamfile, orfs, offsets, output):
                     header[col] = icol
 
                 # printing output header
-                print ("\t".join (columns + ["frame0", "frame1", "frame2", "wilcox_p", "binom_p"]), file=fout)
+                print ("\t".join (columns + ["frame0", "frame1", "frame2", "p_wilcox", "p_binom"]), file=fout)
                 continue
                 
             bam_offsets = pd_offsets[pd_offsets.bam == bamfile]
@@ -88,19 +88,19 @@ def get_phasing (bamfile, orfs, offsets, output):
             frame1 = [s for i, s in enumerate (cds) if i%3 == 1]
             frame2 = [s for i, s in enumerate (cds) if i%3 == 2]
 
-            diff = np.array (frame0) - np.mean ([frame1, frame2], axis=0)
             
-            non_zero = np.sum(diff != 0)
-
-            #mode = "exact" if non_zero <= 25 else "auto"
-
             # wilcoxon-test for frame0 > mean (frame1, frame2)
+            diff = np.array (frame0) - np.mean ([frame1, frame2], axis=0)            
+            non_zero = np.sum(diff != 0)
+            #mode = "exact" if non_zero <= 25 else "auto"            
             wilcox_stat, wilcox_p = wilcoxon(diff, alternative="greater") if non_zero >= 10 else (np.nan, np.nan)
 
-            # binomial-test for frame0 > mean (frame1, frame2)
-            binom_test = binomtest (k=np.sum (diff > 0), n=len(diff), p=1/3, alternative="greater") # if non_zero >= 10 else (np.nan, np.nan)
+            # binomial-test for n(frame0 > frame1 and frame > frame2)
+            mat = np.concatenate ((frame0, frame1, frame2)).reshape ((-1,3), order='F')
+            index_max = np.argmax (mat, axis=1)
+            binom_test = binomtest (k=np.sum (index_max == 0), n=len(index_max), p=1/3, alternative="greater") # if non_zero >= 10 else (np.nan, np.nan)
 
-            print ("\t".join (columns + [str(sum(frame0)), str(sum(frame1)), str(sum(frame2)), str(wilcox_stat), str(wilcox_p)]), file=fout)
+            print ("\t".join (columns + [str(sum(frame0)), str(sum(frame1)), str(sum(frame2)), str(wilcox_p), str(binom_test.pvalue)]), file=fout)
 
     print ("done")
 
