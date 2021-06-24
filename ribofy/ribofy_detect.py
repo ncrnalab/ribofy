@@ -16,7 +16,7 @@ python ribofy.py --bam <bamfile> --orfs <ribofy orfs-file> --prefix <prefix for 
 
 import sys
 from . import __version__
-from .utils import argparse2
+from .argparse2 import argparse2
 from .get_phasing import get_phasing
 from .get_offset import get_offset
 from .get_results import get_results

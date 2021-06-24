@@ -18,7 +18,8 @@ from tqdm import tqdm
 from collections import defaultdict
 
 from . import __version__
-from .utils import argparse2, rev_comp, translate
+from .argparse2 import argparse2
+from .utils import rev_comp, translate
 from .gtf2 import *
 
 

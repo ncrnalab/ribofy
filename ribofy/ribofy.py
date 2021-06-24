@@ -20,6 +20,8 @@ import argparse
 from . import __version__
 from .ribofy_detect import ribofy_detect
 from .ribofy_orfs import ribofy_orfs
+from .get_offset import ribofy_offset
+
 
 def main ():
 
@@ -32,7 +34,6 @@ def main ():
             orfs            builds ORFs from gtf annotation
             detect          detects phased riboseq reads across pre-build ORFs\n\n"""
 
-
     if len (sys.argv) < 2:
         print (text)
         sys.exit (0)
@@ -42,6 +43,9 @@ def main ():
     
     elif sys.argv[1] == "detect":
         ribofy_detect ()
+
+    elif sys.argv[1] == "offset":
+        ribofy_offset ()
 
     elif sys.argv[1] == "-v" or sys.argv[1] == "--version":
         print ("ribofy version", __version__)
