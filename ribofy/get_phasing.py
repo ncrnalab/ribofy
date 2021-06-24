@@ -14,8 +14,38 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from scipy.stats import wilcoxon, binomtest
+from .bam_utils import get_tid_info
 
-from .utils import get_tid_info
+
+
+def get_phasing_matrix (cds):
+    
+    mat = np.array ([[s for i, s in enumerate (cds) if i%3 == 0], # on-frame
+                     [s for i, s in enumerate (cds) if i%3 == 1],
+                     [s for i, s in enumerate (cds) if i%3 == 2]]).T
+
+    return (mat)
+
+
+def get_phasing_stats (mat):
+
+    # remove codons without any signal
+    mat = mat[~np.all(mat == 0, axis=1)]
+
+    # wilcoxon-test for frame0 > mean (frame1, frame2)
+    # diff = mat[:,0] - np.mean (mat[:,1:3], axis=1)
+    # non_zero = np.sum(diff != 0)
+    #mode = "exact" if non_zero <= 25 else "auto"            
+    wilcox_stat, wilcox_p = wilcoxon(mat[:,0], np.mean (mat[:,1:3], axis=1), alternative="greater") if mat.shape[0] >= 10 else (np.nan, np.nan)
+
+    # binomial-test for n(frame0 > frame1 and frame0 > frame2)
+    # add random noise to account for draw-bias
+    mat = mat + np.random.uniform(low=0.0, high=0.99, size=mat.shape)
+
+    index_max = np.argmax (mat, axis=1)
+    binom_p = binomtest (k=np.sum (index_max == 0), n=len(index_max), p=1/3, alternative="greater").pvalue if len (index_max) > 0 else np.nan
+
+    return (wilcox_p, binom_p)
 
 def get_phasing (bamfile, orfs, offsets, output):
 
@@ -59,11 +89,11 @@ def get_phasing (bamfile, orfs, offsets, output):
             bam_offsets = pd_offsets[pd_offsets.bam == bamfile]
             doffsets = bam_offsets[["read_length", "offset"]].set_index('read_length').to_dict ()['offset']
             
-            tid, start, stop = dtid2ref[columns[header['tid']]], int(columns[header['start']]), int(columns[header['stop']])
+            tid, start, stop = dtid2ref[columns[header['tid']]], int(columns[header['start']]), int(columns[header['stop']])+3
 
             # print (tid, file=sys.stderr)
 
-            cds = [0] * (stop-start+3)
+            cds = [0] * (stop-start)
 
             if len(cds)%3 != 0:
                 print (f"ERROR: CDS-length invalid {tid}:{start}-{stop}")
@@ -80,37 +110,13 @@ def get_phasing (bamfile, orfs, offsets, output):
                 
                 offset_pos = read.pos + length_offset
                         
-                if offset_pos >= start and offset_pos < stop+3: 
+                if offset_pos >= start and offset_pos < stop: 
                     cds[offset_pos-start] += 1
 
+
+            mat, wilcox_p, binom_p = get_phasing_stats (cds)
             
-            frame0 = [s for i, s in enumerate (cds) if i%3 == 0] # on-frame
-            frame1 = [s for i, s in enumerate (cds) if i%3 == 1]
-            frame2 = [s for i, s in enumerate (cds) if i%3 == 2]
-
-            # frame matrix
-            mat = np.concatenate ((frame0, frame1, frame2)).reshape ((-1,3), order='F') 
-            
-            # remove codons without any signal
-            mat = mat[~np.all(mat == 0, axis=1)]
-           
-
-            # wilcoxon-test for frame0 > mean (frame1, frame2)
-            # diff = mat[:,0] - np.mean (mat[:,1:3], axis=1)
-            # non_zero = np.sum(diff != 0)
-            #mode = "exact" if non_zero <= 25 else "auto"            
-            wilcox_stat, wilcox_p = wilcoxon(mat[:,0], np.mean (mat[:,1:3], axis=1), alternative="greater") if mat.shape[0] >= 10 else (np.nan, np.nan)
-
-            # binomial-test for n(frame0 > frame1 and frame0 > frame2)
-                       
-            
-            # add random noise to account for draw-bias
-            mat = mat + np.random.uniform(low=0.0, high=0.99, size=mat.shape)
-
-            index_max = np.argmax (mat, axis=1)
-            binom_p = binomtest (k=np.sum (index_max == 0), n=len(index_max), p=1/3, alternative="greater").pvalue if len (index_max) > 0 else np.nan
-
-            print ("\t".join (columns + [str(sum(frame0)), str(sum(frame1)), str(sum(frame2)), str(wilcox_p), str(binom_p)]), file=fout)
+            print ("\t".join (columns + [str(sum(mat[:,0])), str(sum(mat[:,1])), str(sum(mat[:,2])), str(wilcox_p), str(binom_p)]), file=fout)
 
     print ("done")
 
