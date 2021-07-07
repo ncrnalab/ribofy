@@ -96,7 +96,7 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
 
-    install_requires=['pysam>0.8.4','matplotlib','numpy','scipy', 'networkx', 'pandas', 'tqdm', 'argparse'],
+    install_requires=['pysam>0.8.4','numpy','scipy', 'networkx', 'pandas', 'tqdm', 'argparse', 'statsmodels'],
 
     #
     package_data = {},
