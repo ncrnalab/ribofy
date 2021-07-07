@@ -29,6 +29,8 @@ def p_adjust_bh (p):
 
 def get_results (phasing, output, keep_pseudo=False, p_method = "wilcox"):
 
+    print ("### get_results ###")
+
     pcol = "p_" + p_method
 
 
@@ -41,10 +43,10 @@ def get_results (phasing, output, keep_pseudo=False, p_method = "wilcox"):
     if not keep_pseudo:
         pd_phasing = pd_phasing[~pd_phasing.bio_type.str.contains("pseudo")]
         
-    
-    
+        
     # group by orf_groups - only keep the most significant orf for each orf_group
-    pd_collapse = pd_phasing.sort_values([pcol], ascending=True) \
+    #pd_collapse = pd_phasing.sort_values([pcol], ascending=True) \
+    pd_collapse = pd_phasing.sort_values(["total_counts"], ascending=False) \
         .groupby(['orf_group']) \
         .head(1) 
 
@@ -58,8 +60,10 @@ def get_results (phasing, output, keep_pseudo=False, p_method = "wilcox"):
     
     pd_collapse.to_csv (output, sep="\t")
 
+    print ("### Done ###")
 
-if __name__ == "__main__":
+
+def ribofy_results ():
 
     parser = argparse.ArgumentParser(description='collapse ORFs and calculate FDR')
     parser._action_groups.pop()
@@ -77,3 +81,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     get_results (args.phasing, args.output, args.keep_pseudo, args.p_method)
+
+
+if __name__ == "__main__":
+
+    ribofy_results ()
