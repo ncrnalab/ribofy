@@ -23,8 +23,7 @@ from .utils import rev_comp, translate
 from .gtf2 import *
 
 
-
-def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_errors = False):
+def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", min_aa_length=30,  output_fa = False, devel=False):
 
     print ("### get_orfs ###")
 
@@ -32,12 +31,14 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
     gtf = gtf2 (gtf)
     fa = pysam.FastaFile (fa)
 
-    ferror = open (output + ".errors.txt", "w") if output_errors else None
+    ferror = open (output + ".errors.txt", "w") if devel else None
     fseq_aa   = open (output + ".aa.fa", "w") if output_fa else None
     fseq_nt   = open (output + ".nt.fa", "w") if output_fa else None
 
+    start_codon = start_codon.upper()
+
     lorfs = []
-    edges = []
+    edges = {}
 
     print ("finding ORFs in all transcripts...")
 
@@ -76,8 +77,8 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
         seq = seq.upper()
 
         # searching for start (ATG) and stop-codons            
-        start = [m.start() for m in re.finditer('ATG', seq)]
-        stop = [m.start() for m in re.finditer('TGA|TAA|TAG', seq)]
+        start = [m.start() for m in re.finditer(start_codon, seq)]
+        stop = [m.start() for m in re.finditer(stop_codon, seq)]
 
         start_frame = [s % 3 for s in start]
         stop_frame = [s % 3 for s in stop]
@@ -113,7 +114,6 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
                 dorf.append ({'start':fstart[0], 'stop': fstop[0], 'frame':frame, 'orf_length':orf_length})
 
 
-
         # sorting - not required, but then low orf_id corresponds to longer ORFs
         dorf = sorted(dorf, key = lambda i: i['orf_length'], reverse=True)
 
@@ -137,16 +137,22 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
             orf['bio_type'] = biotype
             orf['orf_id'] = f"{tid}_orf_{(i+1):05d}"
 
-            orf['seq'] = seq[orf['start']:orf['stop']]
+            orf_seq = seq[orf['start']:orf['stop']]
+
+            if output_fa:
+                print (f">{orf['orf_id']}\n{translate(orf_seq)}", file=fseq_aa)
+                print (f">{orf['orf_id']}\n{orf_seq}", file=fseq_nt)
+
+            
+            orf['tid_length'] = len(seq)
             
             #using annotated stop
             if orf['stop'] == annot_stop and gannot_start > 0:
                 orf['orf_type'] = "annotated"
 
                 if annot_start < orf['start'] and abs(annot_stop-annot_start)%3 != 0:
-                    
-                    
-                    if output_errors:
+                                        
+                    if devel:
                         ## ERROR: invalid ORF annotation
                         error_data = [str(orf[c]) for c in orf]
                         error_data += [seq]
@@ -176,69 +182,117 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
             orf['gstart'] = dt2g[orf['start']] if strand == "+" else dt2g[len(seq)-orf['start']-1]
             orf['gstop'] = dt2g[orf['stop']] if strand == "+" else dt2g[len(seq)-orf['stop']-1]
 
-            start_id = f"start_{orf['chrom']}:{orf['gstart']}"
-            stop_id = f"stop_{orf['chrom']}:{orf['gstop']}"
-            
-            edges.append ((start_id, stop_id))
-            orf['start_id'] = start_id
-            orf['stop_id'] = stop_id
+            #print (orf)
+
+            range1 = range (orf['start'], orf['stop'], 3)
+            range2 = range (orf['start']+3, orf['stop']+3, 3)
+
+            for pos1, pos2 in zip (range1, range2):
+                #print (pos1, pos2)
+
+                p1 = dt2g[pos1] if strand == "+" else dt2g[len(seq)-pos1-1]
+                p2 = dt2g[pos2] if strand == "+" else dt2g[len(seq)-pos2-1]
+      
+                #e1 = f"{orf['chrom']}:{p1}"
+                #e2 = f"{orf['chrom']}:{p2}"            
+                e1 = f"{chrom}:{p1}{strand}"
+                e2 = f"{chrom}:{p2}{strand}"
+                #print (e1, e2)
+
+                if not orf['chrom'] in edges:
+                    edges[orf['chrom']] = {} 
+
+                edges[orf['chrom']][(e1, e2)] = 1
+
+
+            #pid = f"{orf['chrom']}:{orf['gstart']}"
+            #orf['pid'] = pid
+            #start_id = f"start_{orf['chrom']}:{orf['gstart']}"
+            #stop_id = f"stop_{orf['chrom']}:{orf['gstop']}"
+            #p2 = f"stop_{orf['chrom']}:{orf['gstop']}"
+            #edges.append ((start_id, stop_id))
+            #orf['stop_id'] = stop_id
 
             lorfs.append (orf)
 
-    if output_errors:
+    if devel:
         ferror.close()
 
-    
-
-    print ("infering orf groups...")
-
-    # build graph
-    g = nx.Graph()
-    g.add_edges_from(edges)
+    if output_fa:
+        fseq_aa.close()
+        fseq_nt.close()
 
     
-    if False:
-        import matplotlib    
-        matplotlib.use('Agg')    
-        import matplotlib.pyplot as plt
-        plt.figure(figsize=(12, 12), dpi=300)
-
-        # sort network by connectedness
-        sorted_nw = [c for c in sorted(nx.connected_components(g), key=len, reverse=True)]
-        
-        # recompose network with 2 most connected groups        
-        F = nx.compose_all([g.subgraph(c).copy() for c in sorted_nw[0:2]])
-
-        # draw and save graph plot
-        nx.draw_networkx(F, node_size=100, font_size=8) #, pos=nx.spring_layout(g))
-        plt.savefig('network.png')
-
-    norfs = len (list(nx.connected_components(g)))
-    ngroups = len (list(nx.connected_components(g)))
-
-    print (f"found {ngroups} ORF-groups in {norfs} total ORFs")
-
-    # extract graph groups
+    print ("infering ORF groups...")
+    
+    
     orf_groups = {}
-    for ig, cc in enumerate (list(nx.connected_components(g))):
-        for group_id in cc:
-            orf_groups[group_id] = f"group_{(ig+1):05d}"
+    group_count = 0    
+    group2edge = {}
 
+    for chrom in tqdm(edges):
+    
+        elist = [(e1, e2) for (e1, e2) in edges[chrom]]
+        
+        # build graph
+        g = nx.Graph()
+        g.add_edges_from(elist)
+        
+        # extract graph groups        
+        for ig, cc in enumerate (list(nx.connected_components(g))):
+
+            id_text = f"group_{(group_count+1):05d}"
+
+            for group_id in cc:                
+                orf_groups[group_id] = id_text
+
+                if devel:
+                    group2edge[id_text] = (chrom, ig)
+
+            group_count += 1
 
     
+    print (f"found {group_count} ORF-groups in {len (lorfs)} total ORFs")
 
+    if devel:
+
+        print (f"saving network edges")
+
+        try:
+            import pickle, gzip
+            with gzip.open(output + ".graph.pickle.gz", 'wb') as handle:
+                pickle.dump({'edges' : edges, 'group2edge' : group2edge}, handle)
+            
+        except ModuleNotFoundError:
+            print("modules 'pickle' and 'gzip' are required for saving graphs, skipping...")
+
+
+    print (f"assigning ORF-group to individual ORF")
+
+    connected = 0
     # Assign group to each orf  
     for orf in lorfs:
             
-        groupid_from_start = orf_groups[orf['start_id']]
-        groupid_from_stop = orf_groups[orf['stop_id']]
+        #groupid_from_start = orf_groups[orf['start_id']]
+        #groupid_from_stop = orf_groups[orf['stop_id']]        
+        #groupid = orf_groups[orf['pid']]
 
-        if groupid_from_start != groupid_from_stop:
-            print ("ERROR: Unconnected network")
+        groupid_from_start = orf_groups[f"{orf['chrom']}:{orf['gstart']}{orf['strand']}"]
+        groupid_from_stop = orf_groups[f"{orf['chrom']}:{orf['gstop']}{orf['strand']}"]      
 
-        orf['orf_group'] = groupid_from_start
+        if groupid_from_stop != groupid_from_start:
+            print (f"ERROR: Unconnected network in {orf['tid']} : {groupid_from_start} vs {groupid_from_stop} {orf['strand']}")
+        else:
+            connected += 1
+        groupid = orf_groups[f"{orf['chrom']}:{orf['gstart']}{orf['strand']}"]
 
+        #if groupid_from_start != groupid_from_stop:
+        #    print ("ERROR: Unconnected network")
 
+        #orf['orf_group'] = groupid_from_start
+        orf['orf_group'] = groupid
+
+    print ("connected", connected)
 
     # set group type: annotated > uORF > dORF > novel
     group_score = {}
@@ -248,12 +302,11 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
         
         score = group_score[orf['orf_group']] if orf['orf_group'] in group_score else 0
         group_score[orf['orf_group']] = max (score, group_conv[orf['orf_type']])
-
   
     
     print ("outputting...")
 
-    columns = ["gid", "symbol", "tid", "start", "stop", "annot_start", "annot_stop", 
+    columns = ["gid", "symbol", "tid", "start", "stop", "tid_length", "annot_start", "annot_stop", "frame",
                "chrom", "gstart", "gstop", "strand", "orf_length", "orf_type", 
                "bio_type", "orf_id", "orf_group"]
 
@@ -261,11 +314,6 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
         
         print ("\t".join (columns), file=fout)
         for orf in lorfs:
-
-            if output_fa:
-                print (f">{orf['orf_id']}\n{translate(orf['seq'])}", file=fseq_aa)
-                print (f">{orf['orf_id']}\n{orf['seq']}", file=fseq_nt)
-
                       
             gscore = group_score[orf['orf_group']]
             oscore = group_conv[orf['orf_type']]
@@ -276,9 +324,12 @@ def get_orfs (gtf, fa, output, min_aa_length=30, output_fa = False, output_error
             if oscore >= gscore:
                 print ("\t".join ([str(orf[col]) for col in columns]), file=fout)
 
-    if output_fa:
-        fseq_aa.close()
-        fseq_nt.close()
+    
+
+
+    print ("### Done ###")
+
+
 
 def ribofy_orfs ():
 
@@ -295,6 +346,8 @@ def ribofy_orfs ():
         --output <str>          Output filename, default=orfs.txt   
 
         optional arguments:
+        --start_codon <str>     Specify start_codons for ORF detection. default="ATG"
+        --stop_codon <str>      Specify stop_codons for ORF detection. default="TGA|TAA|TAG"
         --min_aa_length <INT>   Minimum peptide length, default=30
         --output_fa             If set, outputs nucleotide and amino-acid fasta files (<output>.nt.fa and 
                                 <output>.aa.fa, respectively) for all ORFs found
@@ -306,7 +359,7 @@ def ribofy_orfs ():
         usage=help_text,
         help=help_text
     )
-    parser.add_argument('orfs', nargs='?', help='') # dummy argument
+    parser.add_argument('orfs', nargs='?', help='') # dummy positional argument
     
     # required    
     parser.add_argument("--gtf", dest='gtf', required=True)
@@ -314,11 +367,16 @@ def ribofy_orfs ():
     parser.add_argument("--output", dest='output', default = "orfs.txt")
 
     # optional        
-    parser.add_argument("--min_aa_length", dest='min_aa_length', default=30)
+    parser.add_argument("--start_codon", dest='start_codon', type=str, default="ATG")
+    parser.add_argument("--stop_codon", dest='stop_codon', type=str, default="TGA|TAA|TAG")
+    parser.add_argument("--min_aa_length", dest='min_aa_length', type=int, default=30)
     parser.add_argument("--output_fa", dest='output_fa', action="store_true")
+    parser.add_argument("--devel", dest='devel', action="store_true")
     args = parser.parse_args()
 
-    get_orfs (args.gtf, args.fa, args.output, min_aa_length=args.min_aa_length, output_errors=True, output_fa=args.output_fa)
+    get_orfs (args.gtf, args.fa, args.output, 
+              start_codon=args.start_codon, stop_codon=args.stop_codon, 
+              min_aa_length=args.min_aa_length, output_fa=args.output_fa, devel=args.devel)
 
 
 
