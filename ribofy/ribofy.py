@@ -20,7 +20,11 @@ import argparse
 from . import __version__
 from .ribofy_detect import ribofy_detect
 from .ribofy_orfs import ribofy_orfs
+from .ribofy_plot import ribofy_plot
 from .get_offset import ribofy_offset
+from .get_phasing import ribofy_phasing
+from .get_results import ribofy_results
+
 
 
 def main ():
@@ -46,6 +50,15 @@ def main ():
 
     elif sys.argv[1] == "offset":
         ribofy_offset ()
+
+    elif sys.argv[1] == "phasing":
+        ribofy_phasing ()
+
+    elif sys.argv[1] == "results":
+        ribofy_results ()
+
+    elif sys.argv[1] == "plot":
+        ribofy_plot ()
 
     elif sys.argv[1] == "-v" or sys.argv[1] == "--version":
         print ("ribofy version", __version__)
