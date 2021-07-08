@@ -57,6 +57,13 @@ def get_phasing_stats (mat):
             r = np.array([1,-.5, -.5])
             glm_ttest = model.t_test(r)
             glm_p = glm_ttest.pvalue
+            # converting to one-tailed
+            if model.params[0] >= max (model.params):
+                glm_p = glm_p/2
+            else:
+                glm_p = 1-glm_p/2
+
+
         except sme.PerfectSeparationError:
             glm_p = np.nan
 
@@ -151,6 +158,7 @@ def get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict = None,
 
 def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, devel = False):
 
+    
     print ("### get_phasing ###")
     
     if not libmtspec:
@@ -165,6 +173,7 @@ def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, 
 
     bam_dict = {}
     tid2ref_dict = {}
+    
     
     print ("loading bam...")
     
@@ -230,55 +239,8 @@ def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, 
 
             cds = get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict=tid2ref_dict, bam_dict=bam_dict)
 
-            """           
-
-            cds = [0] * (stop-start)
-
-            # fetch read from all bams mapping on tid
-            for bamfile in bamfiles:
-
-                dtid2ref = tid2ref_dict[bamfile]
-
-                if not orf_tid in dtid2ref:
-                    continue
-
-                tid = dtid2ref[orf_tid]
-
-                bam_offsets = pd_offsets[pd_offsets.bam == bamfile]
-                doffsets = bam_offsets[["read_length", "offset_table_key"]].set_index('read_length').to_dict ()['offset_table_key']
-
-                bam = bam_dict[bamfile]
-                
-
-                if not orf_tid in dtid2ref:
-                    print (f"ERROR: {orf_tid} not found in bam... skipping")
-                    continue
-                
-                # array of p-site position counts
-                
-
-                if len(cds)%3 != 0:
-                    print (f"ERROR: CDS-length invalid {tid}:{start}-{stop}")
-                    continue
-
-                for read in bam.fetch (tid, start, stop):
-                            
-                    read_length = read.infer_read_length () 
-                    
-                    if not read_length in doffsets:
-                        continue
-
-                    length_offset = doffsets[read_length]
-                    
-                    offset_pos = read.pos + length_offset
-                            
-                    if offset_pos >= start and offset_pos < stop: 
-                        cds[offset_pos-start] += 1
-
-
-            """
-
             mat = get_phasing_matrix (cds)
+
             output = columns + [str(sum(sum(mat))), str(sum(mat[:,0])), str(sum(mat[:,1])), str(sum(mat[:,2]))]
 
             # the multiplier is only relevent in devel-mode to show signal-length vs statistics
