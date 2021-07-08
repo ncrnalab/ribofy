@@ -45,29 +45,35 @@ def ribofy_detect ():
         --offset <file>             Use pre-established offsets from a previous run
         --norfs <int>               Number of distinct ORFs to determine offsets, default=20
         --percentile <float>        Percentile of consistent offset-determinants in checked orfs.
-                                    Default=0.9. i.e. 90% of analysed ORFs must agree on offset for 
+                                    Default=0.9. i.e. 90%% of analysed ORFs must agree on offset for 
                                     the read_length in question to be included in phasing
         --alpha <float>             The p-value cutoff when determining phasing for a read_length 
                                     to be considered in phasing, default=0.01
                                     
         
-        usage: ribofy detect --bam BAM --orfs ORFS [--prefix PREFIX]"""
+        usage: ribofy detect --bam BAM --orfs ORFS [--prefix PREFIX]\n"""
 
      
+
     parser = argparse2 (
         description=info_text,
         usage=help_text,
         help=help_text
     )
-    parser.add_argument('detect', nargs=1, help='') # dummy argument
-    #parser._action_groups.pop()
 
+    #import argparse
+    #parser = argparse.ArgumentParser(description='sqlite2bed')
+
+    parser.add_argument('detect', nargs='?', help='') # dummy argument
+    
     # required    
-    parser.add_argument("--bam", nargs="+", dest='bam', type=str, required=True)
-    parser.add_argument("--orfs", dest='orfs', type=str, required=True)
-    parser.add_argument("--prefix", dest='prefix', type=str, default = "ribofy")
+    
+    parser.add_argument("--orfs", dest='orfs', required=True, help="orfs")
+    parser.add_argument("--bam", dest='bam', nargs="+", required=True, help="bamfile")    
+    parser.add_argument("--prefix", dest='prefix', default = "ribofy", help="prefix for output")
 
     #optional    
+    
     parser.add_argument('--norfs', dest='norfs', default = 20, type = int, help="number of distinct orfs to build offsets")
     parser.add_argument('--min_read_length', dest='min_read_length', default = 25, type = int, help="minimum read length used in analysis")
     parser.add_argument('--max_read_length', dest='max_read_length', default = 35, type = int, help="maximum read length used in analysis")
@@ -77,6 +83,7 @@ def ribofy_detect ():
     parser.add_argument("--p_method", dest='p_method', default="wilcox", choices = ["wilcox", "binom"], help="statistics used for enrichment of phased reads; either wilcox or binom")
     parser.add_argument("--keep_pseudo", dest='keep_pseudo', action='store_true', default=False, help="Keep pseudogenes in analysis?")
     parser.add_argument("--devel", dest='devel', action="store_true")
+        
     args = parser.parse_args()
     
     offset = f"{args.prefix}_offsets.txt" if args.offset == "" else args.offset
