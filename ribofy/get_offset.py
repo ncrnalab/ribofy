@@ -42,12 +42,14 @@ def agg_table(ret = "key"): #key/value/pct
     return table_
 
 
-def get_offset (bamfiles, orfs, output, norfs=20, min_read_length=25, max_read_length=35, percentile = .9, devel=False):
 
-    print ("### get_offset ###")
-    print ("loading orfs...")
 
-    pd_orfs = pd.read_csv (orfs, sep="\t")
+
+def get_offset (bamfiles, orfs, output="", norfs=20, min_read_length=25, max_read_length=35, percentile = .9, devel=False):
+
+    print ("### getting p-site offsets ###")
+    
+    pd_orfs = pd.read_csv (orfs, sep="\t") if isinstance (orfs, str) else orfs
 
     pd_annot = pd_orfs[(pd_orfs.orf_type == "annotated") & (pd_orfs.orf_length >= 500)] \
         .groupby ("orf_group") \
@@ -59,7 +61,7 @@ def get_offset (bamfiles, orfs, output, norfs=20, min_read_length=25, max_read_l
     for bamfile in bamfiles:
 
         # get transcripts with most counts
-        print ("get transcript counts from bam...")
+        print (f"infering offsets for bam ({bamfile})...")
 
         # load bam
         bam = pysam.Samfile (bamfile)
@@ -71,9 +73,8 @@ def get_offset (bamfiles, orfs, output, norfs=20, min_read_length=25, max_read_l
         
         pd_annot = pd_annot.sort_values ('total_reads', ascending=False)
 
-        print ("determining p-site offsets using the following transcripts..:")
-        print (pd_annot[['tid', 'total_reads']].head (norfs))
-
+        #print ("determining p-site offsets using the following transcripts..:")
+        #print (pd_annot[['tid', 'total_reads']].head (norfs))
 
         # initialize count_offsets
         length_range = range (min_read_length, max_read_length+1) 
@@ -168,14 +169,23 @@ def get_offset (bamfiles, orfs, output, norfs=20, min_read_length=25, max_read_l
         pd_combined = pd.concat ([pd_combined, pd_stats])
 
 
+    #pd_combined.columns = pd_combined.columns.get_level_values(0)
+    
     print ("extracted offsets:")
-    print (pd_combined[['offset_table_key', 'offset_table_pct']])
+    print (pd_combined[['bam', 'offset_table_key', 'offset_table_pct']])
 
-    # save to output
-    pd_combined.to_csv (output, sep="\t")
+    
 
-    if devel:
-        pd_devel.to_csv (output + "_devel.txt", sep="\t")
+    if output != "":
+        # save to output
+        pd_combined.to_csv (output, sep="\t")
+
+        if devel:
+            pd_devel.to_csv (output + "_devel.txt", sep="\t")
+    
+    pd_combined['read_length'] =  pd_combined.index
+    
+    return (pd_combined)
 
     print ("### Done ###")
     
@@ -204,7 +214,8 @@ def ribofy_offset ():
     
     args = parser.parse_args()
 
-    get_offset (args.bam, args.orfs, args.output, 
+    get_offset (args.bam, args.orfs, 
+                output=args.output, 
                 norfs=args.norfs, 
                 min_read_length = args.min_read_length,
                 max_read_length = args.max_read_length,
