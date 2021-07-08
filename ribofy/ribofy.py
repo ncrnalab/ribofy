@@ -36,7 +36,8 @@ def main ():
 
         Where <CMD> can be one of:
             orfs            builds ORFs from gtf annotation
-            detect          detects phased riboseq reads across pre-build ORFs\n\n"""
+            detect          detects phased riboseq reads across pre-build ORFs
+            plot            plots the p-site distibution for specified transcripts\n\n"""
 
     if len (sys.argv) < 2:
         print (text)
