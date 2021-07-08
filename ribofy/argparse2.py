@@ -1,3 +1,4 @@
+import sys
 import argparse
 
 
@@ -12,4 +13,7 @@ class argparse2 (argparse.ArgumentParser):
     def format_help(self):        
         return (self.help + "\n\n")
 
+    def error(self, message):
+        sys.stderr.write(f'{self.help}\n{message}\n')
+        sys.exit(2)
 
