@@ -71,9 +71,9 @@ setup(
 
     ],
     project_urls ={
-        'Documentation': 'https://github.com/ncrnalab/ribofy/blob/master/README.rst',
+        'Documentation': 'https://github.com/ncrnalab/ribofy/blob/master/README.md',
         'Source': 'https://github.com/ncrnalab/ribofy',
-        'ChangeLog': 'https://github.com/ncrnalab/ribofy/blob/master/ChangeLog.rst',
+        'ChangeLog': 'https://github.com/ncrnalab/ribofy/blob/master/ChangeLog.md',
         'Issues': 'https://github.com/ncrnalab/ribofy/issues',
     },
 
