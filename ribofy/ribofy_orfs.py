@@ -23,9 +23,13 @@ from .utils import rev_comp, translate
 from .gtf2 import *
 
 
+
 def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", min_aa_length=30,  output_fa = False, devel=False):
 
     print ("### get_orfs ###")
+
+    start_codon = start_codon.upper().replace ("U", "T")
+    stop_codon = stop_codon.upper().replace ("U", "T")
 
     print ("reading gtf...")
     gtf = gtf2 (gtf)
@@ -43,6 +47,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
     print ("finding ORFs in all transcripts...")
 
     for tid in tqdm(gtf.get_all_tids ()):
+
 
         seq = ""
         dt2g = {}
@@ -119,7 +124,6 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
 
         if len (dorf) == 0:
             continue
-
 
         for i, orf in enumerate (dorf):
             
@@ -352,7 +356,7 @@ def ribofy_orfs ():
         --output_fa             If set, outputs nucleotide and amino-acid fasta files (<output>.nt.fa and 
                                 <output>.aa.fa, respectively) for all ORFs found
         
-        usage: ribofy orfs --gtf GTF --fa FA [--output OUTPUT]"""
+        usage: ribofy orfs --gtf GTF --fa FA [--output OUTPUT]\n"""
 
     parser = argparse2 (
         description=info_text,
