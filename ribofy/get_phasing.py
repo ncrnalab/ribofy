@@ -140,6 +140,9 @@ def get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict = None,
         #     continue
 
         for read in bam.fetch (tid, start, stop):
+
+            if read.is_reverse:
+                continue
                     
             read_length = read.infer_read_length () 
             
