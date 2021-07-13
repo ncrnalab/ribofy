@@ -13,12 +13,15 @@ by the --min_aa_length flag
 import sys
 import pysam
 import re
+import numpy as np
+import pandas as pd
 import networkx as nx
 from tqdm import tqdm
 from collections import defaultdict
 
 from . import __version__
 from .argparse2 import argparse2
+from .get_phasing import get_phasing_matrix
 from .utils import rev_comp, translate
 from .gtf2 import *
 
@@ -69,6 +72,8 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
             
             annot_start += max (0, min (end, gannot_start) - (start-1))
             annot_stop +=  max (0, min (end, gannot_stop) - (start-1))
+
+            
 
 
         if strand == "-":
@@ -147,7 +152,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
                 print (f">{orf['orf_id']}\n{translate(orf_seq)}", file=fseq_aa)
                 print (f">{orf['orf_id']}\n{orf_seq}", file=fseq_nt)
 
-            
+         
             orf['tid_length'] = len(seq)
             
             #using annotated stop
@@ -186,36 +191,21 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
             orf['gstart'] = dt2g[orf['start']] if strand == "+" else dt2g[len(seq)-orf['start']-1]
             orf['gstop'] = dt2g[orf['stop']] if strand == "+" else dt2g[len(seq)-orf['stop']-1]
 
-            #print (orf)
-
             range1 = range (orf['start'], orf['stop'], 3)
             range2 = range (orf['start']+3, orf['stop']+3, 3)
 
             for pos1, pos2 in zip (range1, range2):
-                #print (pos1, pos2)
 
                 p1 = dt2g[pos1] if strand == "+" else dt2g[len(seq)-pos1-1]
                 p2 = dt2g[pos2] if strand == "+" else dt2g[len(seq)-pos2-1]
       
-                #e1 = f"{orf['chrom']}:{p1}"
-                #e2 = f"{orf['chrom']}:{p2}"            
                 e1 = f"{chrom}:{p1}{strand}"
                 e2 = f"{chrom}:{p2}{strand}"
-                #print (e1, e2)
 
                 if not orf['chrom'] in edges:
                     edges[orf['chrom']] = {} 
 
                 edges[orf['chrom']][(e1, e2)] = 1
-
-
-            #pid = f"{orf['chrom']}:{orf['gstart']}"
-            #orf['pid'] = pid
-            #start_id = f"start_{orf['chrom']}:{orf['gstart']}"
-            #stop_id = f"stop_{orf['chrom']}:{orf['gstop']}"
-            #p2 = f"stop_{orf['chrom']}:{orf['gstop']}"
-            #edges.append ((start_id, stop_id))
-            #orf['stop_id'] = stop_id
 
             lorfs.append (orf)
 
@@ -277,10 +267,6 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
     # Assign group to each orf  
     for orf in lorfs:
             
-        #groupid_from_start = orf_groups[orf['start_id']]
-        #groupid_from_stop = orf_groups[orf['stop_id']]        
-        #groupid = orf_groups[orf['pid']]
-
         groupid_from_start = orf_groups[f"{orf['chrom']}:{orf['gstart']}{orf['strand']}"]
         groupid_from_stop = orf_groups[f"{orf['chrom']}:{orf['gstop']}{orf['strand']}"]      
 
@@ -290,13 +276,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
             connected += 1
         groupid = orf_groups[f"{orf['chrom']}:{orf['gstart']}{orf['strand']}"]
 
-        #if groupid_from_start != groupid_from_stop:
-        #    print ("ERROR: Unconnected network")
-
-        #orf['orf_group'] = groupid_from_start
         orf['orf_group'] = groupid
-
-    print ("connected", connected)
 
     # set group type: annotated > uORF > dORF > novel
     group_score = {}
@@ -328,9 +308,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
             if oscore >= gscore:
                 print ("\t".join ([str(orf[col]) for col in columns]), file=fout)
 
-    
-
-
+     
     print ("### Done ###")
 
 
@@ -375,12 +353,14 @@ def ribofy_orfs ():
     parser.add_argument("--stop_codon", dest='stop_codon', type=str, default="TGA|TAA|TAG")
     parser.add_argument("--min_aa_length", dest='min_aa_length', type=int, default=30)
     parser.add_argument("--output_fa", dest='output_fa', action="store_true")
+    
     parser.add_argument("--devel", dest='devel', action="store_true")
     args = parser.parse_args()
 
     get_orfs (args.gtf, args.fa, args.output, 
               start_codon=args.start_codon, stop_codon=args.stop_codon, 
-              min_aa_length=args.min_aa_length, output_fa=args.output_fa, devel=args.devel)
+              min_aa_length=args.min_aa_length, output_fa=args.output_fa, 
+              devel=args.devel)
 
 
 
