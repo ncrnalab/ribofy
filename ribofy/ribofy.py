@@ -21,6 +21,7 @@ from . import __version__
 from .ribofy_detect import ribofy_detect
 from .ribofy_orfs import ribofy_orfs
 from .ribofy_plot import ribofy_plot
+from .ribofy_raw import ribofy_raw
 from .get_offset import ribofy_offset
 from .get_phasing import ribofy_phasing
 from .get_results import ribofy_results
@@ -49,7 +50,7 @@ def main ():
     elif sys.argv[1] == "detect":
         ribofy_detect ()
 
-    elif sys.argv[1] == "offset":
+    elif sys.argv[1] == "offset" or sys.argv[1] == "offsets":
         ribofy_offset ()
 
     elif sys.argv[1] == "phasing":
@@ -60,6 +61,9 @@ def main ():
 
     elif sys.argv[1] == "plot":
         ribofy_plot ()
+
+    elif sys.argv[1] == "raw":
+        ribofy_raw ()
 
     elif sys.argv[1] == "-v" or sys.argv[1] == "--version":
         print ("ribofy version", __version__)
