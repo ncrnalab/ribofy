@@ -80,10 +80,12 @@ def ribofy_detect ():
     parser.add_argument('--offset', dest='offset', default = "", type = str, help="pre-established offset")
     parser.add_argument("--percentile", dest='percentile', default = 0.9, help="Percentile of consistent offset-determinants")
     parser.add_argument("--alpha", dest='alpha', default = 0.01, help="cutoff p-value for phase-detection at percentile")
-    parser.add_argument("--p_method", dest='p_method', default="wilcox", choices = ["wilcox", "binom"], help="statistics used for enrichment of phased reads; either wilcox or binom")
+    parser.add_argument("--p_methods", dest='p_methods', nargs="*", default=["glm"], help="statistics used for enrichment of phased reads; use combination of wilcox, binom, glm, and taper")
     parser.add_argument("--keep_pseudo", dest='keep_pseudo', action='store_true', default=False, help="Keep pseudogenes in analysis?")
-    parser.add_argument("--devel", dest='devel', action="store_true")
-        
+    parser.add_argument("--shuffle", dest='shuffle', action="store_true")
+    #parser.add_argument("--devel", dest='devel', action="store_true")
+    
+
     args = parser.parse_args()
     
     offset = f"{args.prefix}_offsets.txt" if args.offset == "" else args.offset
@@ -98,18 +100,19 @@ def ribofy_detect ():
                     norfs=args.norfs,
                     min_read_length=args.min_read_length, 
                     max_read_length=args.max_read_length,
-                    percentile=args.percentile,                
-                    devel=args.devel)
+                    percentile=args.percentile,
+                    p_methods=args.p_methods)
 
 
     get_phasing (args.bam, args.orfs, offset, phasing, 
                 percentile=args.percentile,
                 alpha=args.alpha,
-                devel=args.devel)
+                p_methods=args.p_methods,
+                shuffle=args.shuffle)
 
     get_results (phasing, result,
                 keep_pseudo=args.keep_pseudo,
-                p_method=args.p_method)
+                p_methods=args.p_methods)
 
 
 if __name__ == "__main__":
