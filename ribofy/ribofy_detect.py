@@ -82,7 +82,8 @@ def ribofy_detect ():
     parser.add_argument("--alpha", dest='alpha', default = 0.01, help="cutoff p-value for phase-detection at percentile")
     parser.add_argument("--p_methods", dest='p_methods', nargs="*", default=["glm"], help="statistics used for enrichment of phased reads; use combination of wilcox, binom, glm, and taper")
     parser.add_argument("--keep_pseudo", dest='keep_pseudo', action='store_true', default=False, help="Keep pseudogenes in analysis?")
-    parser.add_argument("--shuffle", dest='shuffle', action="store_true")
+    parser.add_argument("--shuffle", dest='shuffle', action="store_true")       # for testing and development
+    parser.add_argument("--multiplier", dest='multiplier', nargs="+", type=float, default=[1]) # for testing and development
     #parser.add_argument("--devel", dest='devel', action="store_true")
     
 
@@ -108,7 +109,8 @@ def ribofy_detect ():
                 percentile=args.percentile,
                 alpha=args.alpha,
                 p_methods=args.p_methods,
-                shuffle=args.shuffle)
+                shuffle=args.shuffle,
+                multiplier=args.multiplier)
 
     get_results (phasing, result,
                 keep_pseudo=args.keep_pseudo,
