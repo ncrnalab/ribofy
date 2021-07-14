@@ -107,17 +107,23 @@ def get_results (phasing, output, keep_pseudo=False, p_methods = ["glm"]):
     for p in p_methods:
 
         pcol = "p_" + p            
-        
         #pd_collapse = pd_collapse.dropna(subset=[pcol])
 
-        pd_collapse['fdr_orftype_' + p] = pd_collapse.groupby('orf_type')[pcol].transform (lambda x: p_adjust_bh(x.astype("float"))) #.reset_index(name='fdr')
-        pd_collapse['fdr_biotype_' + p] = pd_collapse.groupby('bio_type')[pcol].transform (lambda x: p_adjust_bh(x.astype("float"))) #.reset_index(name='fdr')
-        
-        pd_collapse['fdr_' + p] = pd_collapse[pcol].transform (lambda x: p_adjust_bh(x.astype("float"))) #.reset_index(name='fdr')
-        
+        # combine types
+        pd_collapse['type'] = pd_collapse[['bio_type', 'orf_type']].agg('_'.join, axis=1)
+
+        # non-filtered padj, i.e. all detected ORFs with p-values are included
+        pd_collapse['fdr_' + p] = pd_collapse[pcol].transform (lambda x: p_adjust_bh(x.astype("float"))) 
+        pd_collapse['fdr_type_' + p] = pd_collapse.groupby('type')[pcol].transform (lambda x: p_adjust_bh(x.astype("float")))
+        pd_collapse['fdr_orftype_' + p] = pd_collapse.groupby('orf_type')[pcol].transform (lambda x: p_adjust_bh(x.astype("float")))
+        pd_collapse['fdr_biotype_' + p] = pd_collapse.groupby('bio_type')[pcol].transform (lambda x: p_adjust_bh(x.astype("float")))        
+                
+        # filtered padj
         pd_collapse = get_filtered_padj (pd_collapse, pcol=pcol, name="filtered_fdr_" + p)    
+        pd_collapse = pd_collapse.groupby('type').apply (get_filtered_padj, pcol=pcol, name="filtered_fdr_type_" + p)
         pd_collapse = pd_collapse.groupby('bio_type').apply (get_filtered_padj, pcol=pcol, name="filtered_fdr_biotype_" + p)
         pd_collapse = pd_collapse.groupby('orf_type').apply (get_filtered_padj, pcol=pcol, name="filtered_fdr_orftype_" + p)
+        
 
     print (pd_collapse)
     
