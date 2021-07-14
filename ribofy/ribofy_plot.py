@@ -14,7 +14,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-def plot_psites (id, orfs, bams, offsets=[], output="", plot_start=None, plot_end=None):
+def plot_psites (id, orfs, bams, offsets=[], output="", plot_start=None, plot_end=None, devel=False):
     
     print ("reading orfs...")
 
@@ -42,7 +42,7 @@ def plot_psites (id, orfs, bams, offsets=[], output="", plot_start=None, plot_en
 
     with PdfPages(output_pdf) as pdf:
 
-
+        # one plot per tid
         for tid in list(set(pd_gene.tid.values)):
 
             pd_tid = pd_gene[pd_gene.tid == tid] 
@@ -74,7 +74,7 @@ def plot_psites (id, orfs, bams, offsets=[], output="", plot_start=None, plot_en
                 ax.bar (x, y, color=frame_color[i], label=f"frame{i}")
 
             max_y = max ([cds[p] for p in range (len (cds)) if p >= start and p<end])
-            max_y = max ([max_y, 10])
+            max_y = max ([max_y + max_y*0.05, 10])
 
             frame_unit = max_y/100
             min_y = -frame_unit*5
@@ -88,9 +88,8 @@ def plot_psites (id, orfs, bams, offsets=[], output="", plot_start=None, plot_en
                 frame = int(row['frame'])
                 frame_y_pos = -(frame+2) * frame_unit
 
-                #print (start, length, frame)
-                
-                ax.add_patch (Rectangle ((start, frame_y_pos), length, frame_unit-1, color=frame_color[frame], linewidth=0))
+                #print (start, length, frame)                
+                ax.add_patch (Rectangle ((start, frame_y_pos), length, frame_unit, color=frame_color[frame], linewidth=0))
 
             ax.legend ()
 
@@ -150,6 +149,7 @@ def ribofy_plot ():
     
     parser.add_argument("--start", dest='start', type=int, default=None)
     parser.add_argument("--end", dest='end', type=int, default=None)
+    parser.add_argument("--devel", dest='devel', action='store_true')
 
 
     args = parser.parse_args()
@@ -158,7 +158,8 @@ def ribofy_plot ():
                  offsets=args.offsets,
                  output=args.output,
                  plot_start=args.start, 
-                 plot_end=args.end)
+                 plot_end=args.end,
+                 devel=args.devel)
 
 
 if __name__ == "__main__":
