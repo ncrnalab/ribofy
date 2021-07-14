@@ -27,7 +27,7 @@ from .gtf2 import *
 
 
 
-def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", min_aa_length=30,  output_fa = False, devel=False):
+def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", min_aa_length=30,  output_fa = False, error_output="", graph_output=""):
 
     print ("### get_orfs ###")
 
@@ -38,7 +38,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
     gtf = gtf2 (gtf)
     fa = pysam.FastaFile (fa)
 
-    ferror = open (output + ".errors.txt", "w") if devel else None
+    ferror = open (error_output, "w") if error_output != "" else None
     fseq_aa   = open (output + ".aa.fa", "w") if output_fa else None
     fseq_nt   = open (output + ".nt.fa", "w") if output_fa else None
 
@@ -161,7 +161,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
 
                 if annot_start < orf['start'] and abs(annot_stop-annot_start)%3 != 0:
                                         
-                    if devel:
+                    if error_output != "":
                         ## ERROR: invalid ORF annotation
                         error_data = [str(orf[c]) for c in orf]
                         error_data += [seq]
@@ -209,7 +209,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
 
             lorfs.append (orf)
 
-    if devel:
+    if error_output != "":
         ferror.close()
 
     if output_fa:
@@ -240,7 +240,7 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
             for group_id in cc:                
                 orf_groups[group_id] = id_text
 
-                if devel:
+                if graph_output != "":
                     group2edge[id_text] = (chrom, ig)
 
             group_count += 1
@@ -248,13 +248,13 @@ def get_orfs (gtf, fa, output, start_codon = "ATG", stop_codon = "TGA|TAA|TAG", 
     
     print (f"found {group_count} ORF-groups in {len (lorfs)} total ORFs")
 
-    if devel:
+    if graph_output != "":
 
         print (f"saving network edges")
-
+        
         try:
             import pickle, gzip
-            with gzip.open(output + ".graph.pickle.gz", 'wb') as handle:
+            with gzip.open(graph_output, 'wb') as handle:
                 pickle.dump({'edges' : edges, 'group2edge' : group2edge}, handle)
             
         except ModuleNotFoundError:
@@ -354,13 +354,16 @@ def ribofy_orfs ():
     parser.add_argument("--min_aa_length", dest='min_aa_length', type=int, default=30)
     parser.add_argument("--output_fa", dest='output_fa', action="store_true")
     
-    parser.add_argument("--devel", dest='devel', action="store_true")
+    parser.add_argument("--error_output", dest='error_output', type=str, default="")
+    parser.add_argument("--graph_output", dest='graph_output', type=str, default="")
+
     args = parser.parse_args()
 
     get_orfs (args.gtf, args.fa, args.output, 
               start_codon=args.start_codon, stop_codon=args.stop_codon, 
               min_aa_length=args.min_aa_length, output_fa=args.output_fa, 
-              devel=args.devel)
+              error_output=args.error_output,
+              graph_output=args.graph_output)
 
 
 
