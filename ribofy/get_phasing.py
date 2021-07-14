@@ -82,7 +82,8 @@ def get_wilcox (mat):
     frame0 = mat[:,0]
     frame12 = np.mean (mat[:,1:3], axis=1)
 
-    wilcox_stat, wilcox_p = wilcoxon(frame0, frame12, alternative="greater", paired=True) if not np.all (frame0-frame12==0) else (np.nan, np.nan)
+    #wilcox_stat, wilcox_p = wilcoxon(frame0, frame12, alternative="greater") if not np.all (frame0-frame12==0) else (np.nan, np.nan)
+    wilcox_stat, wilcox_p = wilcoxon(frame0 - frame12, alternative="greater") if not np.all (frame0-frame12==0) else (np.nan, np.nan)
     return (wilcox_p)
 
 
@@ -100,6 +101,36 @@ def get_binom (mat):
     return (binom_p)
 
 
+def get_theta (y, limit=20, eps = np.finfo(float).eps**.25):
+    """estimates theta for nb GLM - adapted from theta.md (MASS package, R)"""
+
+    y = np.array (y)
+    mu = np.mean (y)
+    dfr = y.shape[0] - 2
+
+    weights = np.ones (len(y))
+    n    = np.sum(weights)    
+    t0   = n/np.sum(weights * (y/mu - 1)**2)
+    nmax = [np.max ([1,p]) for p in y]
+    a    = 2 * np.sum(weights * y * np.log(nmax/mu)) - dfr
+
+    it = 0
+    idel = 1
+    while (it + 1 < limit and np.abs(idel) > eps and not np.isnan (t0)):
+        it = it+1
+        t0 = np.abs(t0)
+        tmp = np.log((y + t0)/(mu + t0))
+        top = a - 2 * np.sum(weights * (y + t0) * tmp)
+        bot = 2 * np.sum(weights * ((y - mu)/(mu + t0) - tmp))
+        idel = top/bot
+        t0 = t0 - idel
+    
+    if t0 <= 0 or np.isnan (t0) or np.isinf (t0):
+        t0 = 1 # default alpha in statsmodels nb glm
+            
+    return (t0)
+
+
 def get_glm (mat):
     """Fits a negative binomial GLM to the p-sites with a two-class frame feature (on or off-frame) and extracts the parameter for the frame coefficient. 
     mat: 2D matrix with shape (3, ncodons)
@@ -110,19 +141,13 @@ def get_glm (mat):
         'frame' : ['onframe', 'offframe', 'offframe'] * mat.shape[0]
     })
 
-
-
     try:
-        model = smf.glm(formula = "counts ~ frame", data=df_glm, family=sm.families.NegativeBinomial()).fit()
-        #r = np.array([1, -.5, -.5])
-                
-        #r = np.array([1, -1, -1])
-        #glm_ttest = model.t_test(r)
+
+        theta = get_theta (df_glm.counts.values)
+        #print ("theta", theta)        
+        model = smf.glm(formula = "counts ~ frame", data=df_glm, family=sm.families.NegativeBinomial(alpha=1/theta)).fit()
         
         glm_p = model.pvalues[1] # glm_ttest.pvalue
-
-        if glm_p < 1e-8:            
-            print (model.params, glm_p)
 
         # converting to one-tailed
         if model.params[1] > 0: #== max (model.params):
@@ -130,13 +155,14 @@ def get_glm (mat):
         else:
             glm_p_onetailed = 1-glm_p/2
 
-        if glm_p < 1e-8:            
-            print (glm_p_onetailed)
 
         return (glm_p_onetailed)
 
-
     except sme.PerfectSeparationError:
+        return (np.nan)
+    except ValueError:
+
+        print ("ValueError:", theta)
         return (np.nan)
 
 
@@ -190,7 +216,13 @@ def get_phasing_stats (input, p_methods = ['wilcox', 'binom', 'glm']):
 
 
 def get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict = None, bam_dict = None):
-    """Iterates through bam-files and orfs to collect all p-sites"""
+    """Iterates through bam-files and orfs to collect all p-sites
+    orf_tid: transcript_id 
+    start: start of ORF in transcript
+    stop: end of ORF in transtript
+    bamfiles: list of bamfiles to analyse
+    pd_offsets: dataframe with offset information for the bamfiles
+    returns: array with p-site distribution"""
 
     if tid2ref_dict == None or bam_dict == None:
         
@@ -225,11 +257,7 @@ def get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict = None,
             print (f"ERROR: {orf_tid} not found in bam... skipping")
             continue
         
-        # array of p-site position counts
-        # if len(cds)%3 != 0:
-        #     print (f"ERROR: CDS-length invalid {tid}:{start}-{stop}")
-        #     continue
-
+        
         for read in bam.fetch (tid, start, stop):
 
             if read.is_reverse:
@@ -254,12 +282,12 @@ def get_psites (orf_tid, start, stop, bamfiles, pd_offsets, tid2ref_dict = None,
     return (psites)
 
 
-"""
-get_phasing: Main function. Iterates through all ORF
-
-"""   
+  
 def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, p_methods = ["glm"], shuffle = False, multiplier = [1]):
+    """
+    get_phasing: Main function. Iterates through all ORF 
 
+    """ 
     
     print ("### get_phasing ###")
 
@@ -275,7 +303,7 @@ def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, 
             print ("no methods left... exiting")
             return ()
 
-    
+
 
     bam_dict = {}
     tid2ref_dict = {}
@@ -311,6 +339,8 @@ def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, 
     print ("checking orfs...")
 
     num_lines = sum(1 for line in open(orfs,'r'))
+
+    ntests = 0
 
     with open(orfs, 'r') as f:
 
@@ -367,16 +397,23 @@ def get_phasing (bamfiles, orfs, offsets, output, percentile=0.9, alpha = 0.01, 
             print ("\t".join (output), file=fout)
 
             # testing
-            if shuffle and output_stats['glm'] < 1e-8:
+            if shuffle and output_stats['glm'] < 1e-6:
                 pd_out = pd.DataFrame (get_phasing_matrix (psites), columns=["frame0", "frame1", "frame2"])
-                pd_out.to_csv ("test.txt", sep="\t")
-                print (output)
+                pd_out['orfid'] = orf_id
+                pd_out.to_csv (output + ".shuffle_test.txt", sep="\t", mode='a' if ntests > 0 else 'w')
+                print ("FOUND NOISE:", output)
+                ntests += 1
 
 
     print ("### Done ###")
 
 
+
 def ribofy_phasing ():
+    """
+    
+    """
+
 
     parser = argparse.ArgumentParser(description='get phasing')
     parser.add_argument("--bam", dest='bam', required=True, nargs="+", help="Bam file - sorted and indexed")
