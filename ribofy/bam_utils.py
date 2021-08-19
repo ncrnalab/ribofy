@@ -2,6 +2,8 @@ import pysam
 
 
 def get_tid_info (bamfile):
+    """
+    """
 
     dtid2count = {}
     dtid2ref = {}

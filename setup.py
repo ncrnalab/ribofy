@@ -113,7 +113,8 @@ setup(
 
         'console_scripts': [
             #name determined the name of cmd line direct call
-            'ribofy=ribofy.ribofy:main'
+            'ribofy=ribofy.ribofy:main',
+            'get_phasing=ribofy.get_phasing:main'
         ],
 
     },

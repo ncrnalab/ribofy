@@ -14,79 +14,23 @@ import argparse
 import pandas as pd
 import numpy as np
 
-
-def p_adjust_bh (p):
-    """Benjamini-Hochberg p-value correction for multiple hypothesis testing.
-    adapted from here: https://stackoverflow.com/questions/7450957/how-to-implement-rs-p-adjust-in-python to allow NaNs
-    """
-    p = np.asfarray(p)
-    
-    nna = ~np.isnan (p)
-    q = np.empty ((len(p)))
-    q[:] = np.nan
-    pnna = p[nna]
-
-    by_descend = pnna.argsort()[::-1]
-    by_orig = by_descend.argsort()
-
-    n = len(pnna) #[~np.isnan (p)])
-    i = np.arange(len(pnna), 0, -1)
-    q[nna] = np.minimum(1, np.fmin.accumulate((float (n)/i) * pnna[by_descend]))[by_orig]
-    return q
-        
-
-
-
-def get_filtered_padj (s, pcol="p_glm", name="filtered_padj"):
-    """Adapted from DESeq2; filtering by expression, the BH padjustment if performed solely on ORFs exceeding the expression threshold. 
-    Then, the threshold that maximized number of rejections (i.e. significant ORFs) are used and the rest obtain NaN fdr values. The maximization is
-    not based on lowess regression, but simply the cutoff with max rejections (lowess implementation TODO)
-    """
-    
-    filter=np.array (s['n'])
-    p=np.array(s[pcol])
-    nrows = s.shape[0]
-
-    if nrows < 50:        
-        s[name] = p_adjust_bh(p)   
-        return (s)
-
-    lq = np.mean(filter == 0)
-    uq = .95 if lq < .95 else 1
-
-    r = np.array (np.linspace(start=lq, stop=uq, num=50))
-
-    cutoffs = np.quantile (filter, r)
-
-    result = np.empty((nrows,len(cutoffs)))
-    result[:] = np.nan
-
-    for i in range (len (cutoffs)):
-        
-        use = filter >= cutoffs[i]    
-        
-        if (np.any(use)):
-            
-            use_p = p[use]        
-            result[use, i] = p_adjust_bh(use_p)        
-
-
-    numRej = np.sum (result < 0.05, axis=0)
-    j = np.argmax(numRej)
-
-    s[name] = result[:,j]
-    return (s)
-
+from .stats import *
 
 
 def get_results (phasing, output, keep_pseudo=False, p_methods = ["glm"]):
     """Main function - loads the output from phasing analysis, removes pseudogenes (except if --keep_pseudo is set) and 
     performed multiple testing corrections 
-    phasing: path/to/phasing file
-    output: path/to/output file  
-    keep_pseudo: flag to allow pseudogenes in the final output
-    p_methods: the p methods to use in multiple testing correction, should be a combination if glm, binom, wilcox and taper, 
-    and the chosen statistics should be been performed in the phasing analysis
+
+    Parameters
+    ----------
+    phasing: str
+        path/to/phasing file
+    output: str
+        path/to/output file  
+    keep_pseudo: boolean, optional, default = False
+        flag to allow pseudogenes in the final output
+    p_methods: list, default = ['glm'], possible entries: "glm", "glm_ro", "binom", "wilcox", "taper"
+        List of statistical methods to assess phasing
     """
 
     print ("### get_results ###")

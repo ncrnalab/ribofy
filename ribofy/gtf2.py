@@ -90,7 +90,7 @@ class gtf2_info (object):
     def get_length (self):
         return len([info for info in self.get_info ()])
 
-    def print (self, feature):
+    def print_feature (self, feature):
 
         for info in self.get_info ():
             self.print_info (info, feature)
@@ -379,5 +379,5 @@ class gtf2 (object):
 
     def print (self, tid, feature):
 
-        self.fetch (tid, feature).print (feature)
+        self.fetch (tid, feature).print_feature (feature)
 

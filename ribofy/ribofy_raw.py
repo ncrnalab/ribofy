@@ -4,8 +4,9 @@ import pandas as pd
 
 from . import __version__
 from .argparse2 import argparse2
-from .get_phasing import get_psites, get_phasing_matrix
+from .get_phasing import get_psites 
 from .get_offset import get_offset
+from .stats import get_2D_matrix
 
 
 def get_raw_data (id, orfs, bams, offsets=[], output=""):
@@ -40,7 +41,7 @@ def get_raw_data (id, orfs, bams, offsets=[], output=""):
         print (f"retrieving p-sites ({row['tid']})...")
         cds = get_psites (row['tid'], row['start'], row['stop'], bams, pd_offsets)
 
-        mat = get_phasing_matrix (cds)
+        mat = get_2D_matrix (cds)
 
         pd_data = pd.DataFrame (mat, columns=[f"frame{f}" for f in range (3)])
         pd_data['codon'] = pd_data.index

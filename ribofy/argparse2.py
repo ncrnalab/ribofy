@@ -15,5 +15,5 @@ class argparse2 (argparse.ArgumentParser):
 
     def error(self, message):
         sys.stderr.write(f'{self.help}\n{message}\n')
-        sys.exit(2)
+        sys.exit()
 
